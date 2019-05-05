@@ -9,6 +9,11 @@
 #include <errno.h>
 #include <stdint.h>
 
+#define ARP_ETHERNET    0x0001
+#define ARP_IPV4        0x0800
+#define ARP_REQUEST     0x0001
+#define ARP_REPLY       0x0002
+#define ETH_P_ARP	0x0806	
 /*commands used for creating tap device 
 sudo openvpn --mktun --dev tap1
 sudo ip addr add 10.0.0.1/24 dev tap1
@@ -29,6 +34,7 @@ struct ethernet_header
     uint16_t ethertype;
     unsigned char payload[];
 } __attribute__((packed));
+//------------------------------------------------------------------------------------------------------------------------------------------
 /*
 arp header
 */
@@ -119,9 +125,49 @@ int check_type_of_network_layer(struct ethernet_header *hdr){
    else 
      return -1;
 }
+//--------------------------------------------------------------------------------------------------------------------------------------------------------
+void handle_arp_request(struct ARP_header *arp,struct arp_ipv4 *arpPayload,struct ethernet_header *header,int file_descriptor,int read_value){
+    memcpy(arpPayload->dmac, arpPayload->smac, 6);
+    uint32_t x =  arpPayload->sip;
+    arpPayload->sip = arpPayload->dip;
+    arpPayload->dip = arpPayload->sip;
+    memset(arpPayload->smac, 0, 6);
+    arp->operation = ARP_REPLY;
+    arp->operation = htons(arp->operation);
+    arp->hardwareType = htons(arp->hardwareType);
+    arp->protocolType = htons(arp->protocolType);
+    arpPayload->sip = htonl(arpPayload->sip);
+    arpPayload->dip = htonl(arpPayload->dip);
+    memcpy(header->dmac, arpPayload->dmac, 6);
+    memcpy(header->smac, arpPayload->smac,6);
+     for(int i=0;i<6;i++){
+        printf("%.2hhx:",arpPayload->smac[i]);
+      }
+    header->ethertype = htons(ETH_P_ARP);
+    printf("%d\n",write(file_descriptor, (char*)header, read_value));
+   
+    
+}
+//--------------------------------------------------------------------------------------------------------------------------------------------------------
+void check_reply_or_request(struct ARP_header *arp,struct ethernet_header *header,int file_descriptor,int read_value)
+{
+
+if(arp->operation == ARP_REQUEST && arp ->protocolType == ARP_IPV4)
+{
+  struct arp_ipv4 *arppayload = (struct arp_ipv4*)arp->data;
+  arppayload ->sip = ntohl(arppayload->sip);
+  arppayload ->dip = ntohl(arppayload->dip);
+  handle_arp_request(arp,arppayload,header,file_descriptor,read_value);
+}
+else 
+ printf("Not supported");
+}
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------
-void parse_arp_formart(struct ethernet_header *header){
+void parse_arp_format(struct ethernet_header *header,int file_descriptor,int read_value){
 struct ARP_header *arp = (struct ARP_header *) (header->payload);
+arp->operation = ntohs(arp->operation);
+
+check_reply_or_request(arp,header,file_descriptor, read_value);
 
 }
 int main(){
@@ -149,7 +195,7 @@ while(1) {
   struct ethernet_header *header =  (struct ethernet_header *)(buffer); 
   header->ethertype = ntohs(header->ethertype) ;
   if(check_type_of_network_layer(header) == 0)
-    parse_arp_format(header);
+    parse_arp_format(header,file_descriptor,read_value);
   else 
     printf("Not supported");
 
