@@ -7,6 +7,7 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <errno.h>
+#include <stdint.h>
 
 /*commands used for creating tap device 
 sudo openvpn --mktun --dev tap1
@@ -31,14 +32,25 @@ struct ethernet_header
 /*
 arp header
 */
-struct arp_header
+struct ARP_header
 {
-    uint16_t hwtype;
-    uint16_t protype;
-    unsigned char hwsize;
-    unsigned char prosize;
-    uint16_t opcode;
-    unsigned char data[];
+    uint16_t hardwareType; // This field specifies the network link protocol type. Example: Ethernet is 1.
+    uint16_t protocolType; //is field specifies the internetwork protocol for which the ARP request is intended. For IPv4, this has the value 0x0800. 
+    unsigned char hardwareSize; // Length (in octets) of a hardware address. Ethernet addresses size is 6(MAC).
+    unsigned char protocolSize; // Length (in octets) of addresses used in the upper layer protocol. (The upper layer protocol specified in PTYPE.) IPv4 address size is 4
+    uint16_t operation; //Specifies the operation that the sender is performing: 1 for request, 2 for reply.
+    unsigned char data[]; // payload of arp message in our case, this will contain IPv4 specific information
+} __attribute__((packed));
+//-----------------------------------------------------------------------------------------------------------------------------------
+/*
+The data field contains the actual payload of the ARP message, and in our case, this will contain IPv4 specific information:
+*/
+struct arp_ipv4
+{
+    unsigned char smac[6]; //Sender hardware address (SHA)
+    uint32_t sip;// Internetwork address of the sender.
+    unsigned char dmac[6];// Target hardware address (THA)
+    uint32_t dip; // Internetwork address of the destination.
 } __attribute__((packed));
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------
 /*
@@ -85,21 +97,32 @@ Reading and writing to the virtual interface is simple, we can use read() and wr
 */
 ///handle reading from interface
 ///return value (0,1) if 1 means successful read 
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------
 int read_from_interface(int file_descriptor,char *buffer, int buffer_length){
  int return_value = read(file_descriptor, buffer, buffer_length);
  if(return_value<0) return -1;
  else
   return return_value ;
 }
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------
 int tun_write(int file_descriptor,char *buffer, int buffer_length)
 {
     return write(file_descriptor, buffer, buffer_length);
 }
-int check_type_of_network_layer(ethernet_header *hdr){
+//check the type of network layer packet 
+//---------------------------------------------------------------------------------------------------------------------------------------------
+int check_type_of_network_layer(struct ethernet_header *hdr){
    if(hdr->ethertype==ETH_P_ARP)
      return 0;
    else if(hdr-> ethertype == ETH_P_IP)
      return 1;
+   else 
+     return -1;
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------
+void parse_arp_formart(struct ethernet_header *header){
+struct ARP_header *arp = (struct ARP_header *) (header->payload);
+
 }
 int main(){
 
@@ -123,8 +146,12 @@ while(1) {
   }
   //parsing ethernet package format 
   printf("Read %d bytes from device %s %s\n", read_value, tun_name,buffer);
-  struct ethernet_header *hdr =  (struct ethernet_header *)(buffer);  
-  check_type_of_network_layer(hdr);
+  struct ethernet_header *header =  (struct ethernet_header *)(buffer); 
+  header->ethertype = ntohs(header->ethertype) ;
+  if(check_type_of_network_layer(header) == 0)
+    parse_arp_format(header);
+  else 
+    printf("Not supported");
 
  }
   return 0;
