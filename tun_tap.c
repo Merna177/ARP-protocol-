@@ -31,7 +31,7 @@ struct ethernet_header
 {
     unsigned char dmac[6];
     unsigned char smac[6];
-    uint16_t ethertype;
+    uint16_t ethertype;///type of network layer protocol
     unsigned char payload[];
 } __attribute__((packed));
 //------------------------------------------------------------------------------------------------------------------------------------------
@@ -158,9 +158,10 @@ if(arp->operation == ARP_REQUEST && arp ->protocolType == ARP_IPV4)
   arppayload ->sip = ntohl(arppayload->sip);
   arppayload ->dip = ntohl(arppayload->dip);
   handle_arp_request(arp,arppayload,header,file_descriptor,read_value);
+  printf("MMEM\n");
 }
 else 
- printf("Not supported");
+ printf("Not supported\n");
 }
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------
 void parse_arp_format(struct ethernet_header *header,int file_descriptor,int read_value){
