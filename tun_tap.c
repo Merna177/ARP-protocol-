@@ -144,21 +144,21 @@ void handle_arp_request(struct ARP_header *arp,struct arp_ipv4 *arpPayload,struc
         printf("%.2hhx:",arpPayload->smac[i]);
       }
     header->ethertype = htons(ETH_P_ARP);
-    printf("%d\n",write(file_descriptor, (char*)header, read_value));
+    printf("writing %d\n",write(file_descriptor, (char*)header, read_value));
    
     
 }
 //--------------------------------------------------------------------------------------------------------------------------------------------------------
 void check_reply_or_request(struct ARP_header *arp,struct ethernet_header *header,int file_descriptor,int read_value)
 {
+printf("%4hx",arp->operation);
 
 if(arp->operation == ARP_REQUEST && arp ->protocolType == ARP_IPV4)
-{
+{ 
   struct arp_ipv4 *arppayload = (struct arp_ipv4*)arp->data;
   arppayload ->sip = ntohl(arppayload->sip);
   arppayload ->dip = ntohl(arppayload->dip);
   handle_arp_request(arp,arppayload,header,file_descriptor,read_value);
-  printf("MMEM\n");
 }
 else 
  printf("Not supported\n");
@@ -167,6 +167,7 @@ else
 void parse_arp_format(struct ethernet_header *header,int file_descriptor,int read_value){
 struct ARP_header *arp = (struct ARP_header *) (header->payload);
 arp->operation = ntohs(arp->operation);
+arp->protocolType = ntohs(arp->protocolType);
 
 check_reply_or_request(arp,header,file_descriptor, read_value);
 
@@ -177,7 +178,6 @@ int main(){
   strcpy(tun_name, "tap1");
   int file_descriptor = tun_alloc(tun_name);  
   if(file_descriptor < 0){
-   printf("merna");
    printf("error in Allocating interface\n");
    return 0;
   }
